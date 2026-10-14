@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">FreeDoom</string>
+    <string name="accessibility_service_label">FreeDoom · contador de vídeos cortos</string>
+    <string name="accessibility_service_description">FreeDoom usa este servicio solo para contar cuántos vídeos cortos (reels) ves en Instagram y cuánto tiempo pasas en cada uno. Mira únicamente los identificadores técnicos de la pantalla de Instagram para saber si estás en Reels y cuándo pasas al siguiente vídeo. No lee ni guarda textos, nombres de cuentas, mensajes ni imágenes, no controla tu móvil y no envía nada a internet: la app no tiene acceso a internet. Solo guarda en tu móvil el número de vídeos y la hora de cada uno.</string>
+</resources>

@@ -6,7 +6,9 @@ import androidx.room.PrimaryKey
 
 /**
  * Un vídeo corto visto. Solo app y marcas de tiempo: nunca contenido de la pantalla.
- * [endedAt] queda a null mientras el vídeo sigue en pantalla.
+ * [endedAt] es null mientras el vídeo sigue en pantalla y también cuando su duración es
+ * desconocida (p. ej. el servicio se paró antes de cerrarlo). Esas filas cuentan como
+ * vídeo visto, pero no entran en la media de segundos por vídeo.
  */
 @Entity(
     tableName = "short_videos",

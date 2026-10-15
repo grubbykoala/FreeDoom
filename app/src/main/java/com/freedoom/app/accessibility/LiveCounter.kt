@@ -1,5 +1,6 @@
 package com.freedoom.app.accessibility
 
+import com.freedoom.app.debug.DebugLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -20,7 +21,28 @@ object LiveCounter {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
 
-    fun setRunning(running: Boolean) = _state.update { it.copy(serviceRunning = running, inShortVideos = false) }
+    /** Al arrancar el servicio empieza una sesión nueva, pero la tanda de calibración se conserva. */
+    fun setRunning(running: Boolean) {
+        if (running && _state.value.calibrationCount != null) {
+            DebugLog.add(
+                "CALIBRACIÓN",
+                "el servicio se reinició durante la tanda: pueden faltar vídeos del rato en que estuvo parado",
+            )
+        }
+        _state.update {
+            if (running) {
+                it.copy(
+                    serviceRunning = true,
+                    inShortVideos = false,
+                    countSinceStart = 0,
+                    lastReason = null,
+                    lastVideoAt = null,
+                )
+            } else {
+                it.copy(serviceRunning = false, inShortVideos = false)
+            }
+        }
+    }
 
     fun setInShortVideos(value: Boolean) {
         if (_state.value.inShortVideos != value) _state.update { it.copy(inShortVideos = value) }

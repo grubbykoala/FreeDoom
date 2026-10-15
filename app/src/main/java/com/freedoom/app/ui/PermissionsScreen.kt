@@ -238,14 +238,13 @@ private fun Section(title: String, status: Status, body: String?, content: @Comp
     }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-                StatusLabel(label, color)
-            }
+            // Estado debajo del título: con letra grande, en la misma fila partiría el título.
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
+            )
+            StatusLabel(label, color)
             if (body != null) Text(body)
             content()
         }
@@ -254,5 +253,5 @@ private fun Section(title: String, status: Status, body: String?, content: @Comp
 
 @Composable
 private fun StatusLabel(text: String, color: Color) {
-    Text(text, color = color, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 8.dp))
+    Text(text, color = color, style = MaterialTheme.typography.labelLarge)
 }

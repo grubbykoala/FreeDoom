@@ -38,6 +38,9 @@ class ShortVideoTracker(
 
     var inShortVideos = false
         private set
+
+    /** Identidad del visor actual, si se conoce (para recordarla si el proceso se reinicia). */
+    val viewer: Int? get() = currentViewer
     private var packageName: String? = null
     private var currentStart: Long? = null
     private var lastIndex: Int? = null
@@ -51,7 +54,9 @@ class ShortVideoTracker(
     private var lastSeenAt: Long? = null
     private var enteredAt = Long.MIN_VALUE / 2
     private var lastStartAt = Long.MIN_VALUE / 2
-    private var lastExit: Exit? = null
+
+    /** Últimas salidas (la más reciente al final): volver a cualquiera de esos visores es una reanudación. */
+    private val recentExits = ArrayDeque<Exit>()
 
     /** Índice con el que se salió, si se acaba de reanudar (para reconocer otro reel abierto al volver). */
     private var resumedIndex: Int? = null
@@ -72,8 +77,18 @@ class ShortVideoTracker(
      */
     fun onScreenState(pkg: String, detected: Boolean, now: Long, pageIndex: Int? = null, viewer: Int? = null) {
         if (detected) {
+            val left = notDetectedSince
             notDetectedSince = null
-            if (!inShortVideos) enter(pkg, now, pageIndex, viewer) else if (viewer != null) currentViewer = viewer
+            when {
+                !inShortVideos -> enter(pkg, now, pageIndex, viewer)
+                left != null && viewer != null && currentViewer != null && viewer != currentViewer -> {
+                    // Se vio salir y ha vuelto OTRO visor antes de acabar la gracia (p. ej. el siguiente reel
+                    // de un chat): es otro reel. La ventana de apertura absorbe los saltos de colocación.
+                    exit(left)
+                    enter(pkg, now, pageIndex, viewer)
+                }
+                viewer != null -> currentViewer = viewer
+            }
             lastSeenAt = now
         } else if (inShortVideos) {
             val since = notDetectedSince ?: now.also { notDetectedSince = it }
@@ -127,24 +142,57 @@ class ShortVideoTracker(
         if (inShortVideos) exit(minOf(now, lastSeenAt ?: now))
     }
 
+    /**
+     * El proceso se reinició estando en vídeos cortos: se recuerda esa salida para que volver al
+     * mismo visor sea una reanudación y no cuente otra vez el mismo vídeo.
+     */
+    fun seedExit(pkg: String, viewer: Int?, at: Long) {
+        if (!inShortVideos) addExit(Exit(pkg, null, viewer, at))
+    }
+
+    /** Olvida las salidas recientes: lo siguiente que se vea cuenta (inicio de una tanda de calibración). */
+    fun forgetExits() {
+        recentExits.clear()
+    }
+
     /** Primeros [openSettleMs] tras entrar. Tolera eventos que se procesan con algo de retraso. */
     private fun settling(now: Long) = now - enteredAt in -ShortVideoConfig.MAX_EVENT_LAG_MS until openSettleMs
 
+    /**
+     * La salida más reciente a la que esto es una vuelta: mismo visor (o visor desconocido, solo
+     * para la última salida), índice compatible y dentro de [resumeWindowMs].
+     */
+    private fun matchingExit(pkg: String, now: Long, pageIndex: Int?, viewer: Int?): Exit? {
+        val newest = recentExits.lastOrNull()
+        for (e in recentExits.asReversed()) {
+            if (e.pkg != pkg || now - e.at > resumeWindowMs) continue
+            if (pageIndex != null && e.index != null && pageIndex != e.index) continue
+            val sameViewer = viewer != null && e.viewer != null && viewer == e.viewer
+            val unknownViewer = (viewer == null || e.viewer == null) && e === newest
+            if (sameViewer || unknownViewer) return e
+        }
+        return null
+    }
+
+    private fun addExit(exit: Exit) {
+        recentExits.addLast(exit)
+        while (recentExits.size > MAX_RECENT_EXITS) recentExits.removeFirst()
+    }
+
     private fun enter(pkg: String, now: Long, pageIndex: Int?, viewer: Int?) {
-        val prev = lastExit
-        lastExit = null
+        val prev = matchingExit(pkg, now, pageIndex, viewer)
+        if (prev != null) recentExits.remove(prev)
         inShortVideos = true
         packageName = pkg
         notDetectedSince = null
         enteredAt = now
         currentViewer = viewer
-        if (prev != null && prev.pkg == pkg && now - prev.at <= resumeWindowMs &&
-            (pageIndex == null || prev.index == null || pageIndex == prev.index) &&
-            (viewer == null || prev.viewer == null || viewer == prev.viewer)
-        ) {
+        if (prev != null) {
             // El mismo vídeo de antes: no es uno nuevo. Este tramo no se mide.
             lastIndex = pageIndex ?: prev.index
             resumedIndex = lastIndex
+            // Sin índice conocido no hay colocación que absorber: el primer deslizamiento debe contar.
+            if (lastIndex == null) enteredAt = Long.MIN_VALUE / 2
             if (currentViewer == null) currentViewer = prev.viewer
             listener.onResumed(pkg, now, "reanudación (índice ${lastIndex ?: "?"}, visor ${currentViewer ?: "?"})")
         } else {
@@ -155,7 +203,7 @@ class ShortVideoTracker(
     }
 
     private fun exit(at: Long) {
-        packageName?.let { lastExit = Exit(it, lastIndex, currentViewer, at) }
+        packageName?.let { addExit(Exit(it, lastIndex, currentViewer, at)) }
         endCurrent(at)
         inShortVideos = false
         lastIndex = null
@@ -182,5 +230,10 @@ class ShortVideoTracker(
         val start = currentStart ?: return
         currentStart = null
         listener.onVideoEnded(packageName!!, start, maxOf(at, start))
+    }
+
+    private companion object {
+        /** Salidas que se recuerdan: Reels → perfil → reel del perfil → perfil → Reels sigue siendo una vuelta. */
+        const val MAX_RECENT_EXITS = 4
     }
 }

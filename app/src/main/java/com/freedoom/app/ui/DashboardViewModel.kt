@@ -83,20 +83,28 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         val today = DayRange.today()
         if (today != day.value) day.value = today
         refreshJob?.cancel()
+        // Un aviso de "no recibe nada" anterior al último latido o conexión ya no vale (p. ej. recién
+        // reactivado): se quita ya, sin esperar al refresco, para que no parpadee un error falso.
+        val app = getApplication<Application>()
+        val base = maxOf(ServiceHealth.lastHeartbeatAt(app) ?: 0L, ServiceHealth.connectedAt(app) ?: 0L)
+        _health.update { h ->
+            h.copy(missedInstagramAt = h.missedInstagramAt?.takeIf { it > base + ServiceHealth.HEARTBEAT_INTERVAL_MS })
+        }
         refreshJob = viewModelScope.launch(errorHandler) {
-            try {
-                _usage.value = withContext(Dispatchers.IO) { repo.refresh(today)?.let(::toUi) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "no se pudo leer el uso", e)
-            }
+            // Primero la salud del contador (es lo más barato), luego el uso del día.
             try {
                 _health.value = withContext(Dispatchers.IO) { readHealth(System.currentTimeMillis()) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "no se pudo comprobar el contador", e)
+            }
+            try {
+                _usage.value = withContext(Dispatchers.IO) { repo.refresh(today)?.let(::toUi) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "no se pudo leer el uso", e)
             }
         }
     }

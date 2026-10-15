@@ -8,7 +8,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,7 +29,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,14 +45,22 @@ import com.freedoom.app.BuildConfig
 private enum class Screen { Dashboard, Permissions, Debug }
 
 class MainActivity : ComponentActivity() {
-    /** El servicio se activó sin aceptar el aviso y se apagó: hay que llevar al usuario al aviso. */
-    private val showConsent = mutableStateOf(false)
+    /**
+     * Veces que el servicio se ha activado sin aceptar el aviso y ha abierto la app: cada una lleva al
+     * aviso. Es un contador (no un sí/no) para que la segunda vez también funcione.
+     */
+    private val consentRequests = mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        takeConsentExtra(intent)
-        setContent { FreeDoomTheme { FreeDoomRoot(showConsent) } }
+        if (savedInstanceState == null) {
+            takeConsentExtra(intent)
+        } else {
+            // Recreada (rotación, proceso nuevo): el intent original ya se atendió.
+            consentRequests.intValue = savedInstanceState.getInt(KEY_CONSENT_REQUESTS)
+        }
+        setContent { FreeDoomTheme { FreeDoomRoot(consentRequests.intValue) } }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -56,36 +68,52 @@ class MainActivity : ComponentActivity() {
         takeConsentExtra(intent)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_CONSENT_REQUESTS, consentRequests.intValue)
+    }
+
     private fun takeConsentExtra(intent: Intent?) {
-        if (intent?.getBooleanExtra(EXTRA_SHOW_CONSENT, false) == true) {
-            showConsent.value = true
-            // Para que no se repita al recrear la actividad (rotación).
-            intent.removeExtra(EXTRA_SHOW_CONSENT)
-        }
+        if (intent?.getBooleanExtra(EXTRA_SHOW_CONSENT, false) == true) consentRequests.intValue++
     }
 
     companion object {
         const val EXTRA_SHOW_CONSENT = "show_consent"
+        private const val KEY_CONSENT_REQUESTS = "consent_requests"
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FreeDoomRoot(showConsent: MutableState<Boolean>) {
+private fun FreeDoomRoot(consentRequests: Int) {
     val context = LocalContext.current
     var permissions by remember { mutableStateOf(Permissions.read(context)) }
     var screen by rememberSaveable {
         mutableStateOf(if (permissions.usageAccess) Screen.Dashboard else Screen.Permissions)
     }
-    LaunchedEffect(showConsent.value) { if (showConsent.value) screen = Screen.Permissions }
+    // Peticiones ya atendidas y si se muestra el aviso: sobreviven a la rotación.
+    var handledRequests by rememberSaveable { mutableIntStateOf(0) }
+    var consentNotice by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(consentRequests) {
+        if (consentRequests > handledRequests) {
+            handledRequests = consentRequests
+            screen = Screen.Permissions
+            consentNotice = true
+        }
+    }
+    // El aviso solo vale hasta salir de Permisos (y se oculta en cuanto se acepta).
+    LaunchedEffect(screen) { if (screen != Screen.Permissions) consentNotice = false }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { permissions = Permissions.read(context) }
     BackHandler(enabled = screen != Screen.Dashboard) { screen = Screen.Dashboard }
     // Conserva el scroll de cada pantalla al ir y volver.
     val stateHolder = rememberSaveableStateHolder()
 
+    // safeDrawing incluye el recorte de la cámara: en horizontal nada queda debajo.
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
                 title = {
                     Text(
                         when (screen) {
@@ -120,6 +148,7 @@ private fun FreeDoomRoot(showConsent: MutableState<Boolean>) {
                     permissions = permissions,
                     onOpenPermissions = { screen = Screen.Permissions },
                     modifier = modifier,
+                    onTick = { permissions = Permissions.read(context) },
                 )
                 Screen.Permissions -> PermissionsScreen(
                     state = permissions,
@@ -129,7 +158,7 @@ private fun FreeDoomRoot(showConsent: MutableState<Boolean>) {
                     },
                     onDone = { screen = Screen.Dashboard },
                     modifier = modifier,
-                    showConsentNotice = showConsent.value,
+                    showConsentNotice = consentNotice && !permissions.accessibilityConsent,
                 )
                 Screen.Debug -> if (BuildConfig.DEBUG) DebugScreen(modifier) else Unit
             }

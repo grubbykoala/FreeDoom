@@ -29,7 +29,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Cuenta vídeos cortos. Solo recibe eventos de las apps de [ShortVideoConfig] y
- * solo mira ids de vista y clases; nunca lee ni guarda textos ni imágenes.
+ * solo mira ids de vista, clases, visibilidad y tamaños; nunca lee ni guarda textos ni imágenes.
+ * (Antes de Android 13, el sistema entrega los nodos vecinos con su texto en memoria al pedir un
+ * nodo; el código no los lee ni los guarda.)
  * Sin el consentimiento aceptado en la app no cuenta ni guarda nada de Instagram (en depuración
  * solo anota que se desactiva).
  */
@@ -49,7 +51,7 @@ class ShortVideoAccessibilityService : AccessibilityService() {
     private var activePlatform: ShortVideoPlatform? = null
     private var watching = false
     private var trailingPending = false
-    private var shutDown = false
+    @Volatile private var shutDown = false
 
     private val tracker = ShortVideoTracker(listener = object : ShortVideoTracker.Listener {
         override fun onVideoStarted(packageName: String, at: Long, reason: String) {
@@ -124,7 +126,15 @@ class ShortVideoAccessibilityService : AccessibilityService() {
         )
         LiveCounter.setRunning(true)
         DebugLog.add("SERVICIO", "conectado")
-        checkForGap(System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        checkForGap(now)
+        // Proceso reiniciado a mitad de un reel (Stop en Android Studio, el sistema lo mató...):
+        // volver al mismo visor no es un vídeo nuevo.
+        ServiceHealth.reelsSeen(this)?.let { seen ->
+            if (now - seen.at in 0..ShortVideoConfig.RESUME_WINDOW_MS) {
+                tracker.seedExit(ShortVideoConfig.INSTAGRAM_PACKAGE, seen.viewer, seen.at)
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) = guarded("evento") { handleEvent(event) }
@@ -139,6 +149,7 @@ class ShortVideoAccessibilityService : AccessibilityService() {
             return
         }
         activePlatform = platform
+        if (LiveCounter.takeForgetExitsRequest()) tracker.forgetExits()
         ServiceHealth.recordHeartbeat(this, now)
         tracker.onAnyEvent(pkg, now)
 
@@ -150,9 +161,18 @@ class ShortVideoAccessibilityService : AccessibilityService() {
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> checkScreen(platform, now, force = false)
         }
+        noteReelsSeen(now)
         LiveCounter.setInShortVideos(tracker.inShortVideos)
         ensureWatching()
     }
+
+    private fun noteReelsSeen(now: Long) {
+        if (tracker.inShortVideos) ServiceHealth.recordReelsSeen(this, now, tracker.viewer)
+    }
+
+    /** Raíz de la ventana activa. En Android 13+ sin precarga: solo hacen falta el paquete, ids y tamaños. */
+    private fun activeRoot(): AccessibilityNodeInfo? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) getRootInActiveWindow(0) else rootInActiveWindow
 
     /** Hora en que ocurrió el evento, no la de proceso: si el hilo va con retraso, no se comprimen los huecos entre gestos. */
     private fun eventTime(event: AccessibilityEvent): Long {
@@ -165,10 +185,16 @@ class ShortVideoAccessibilityService : AccessibilityService() {
     }
 
     private fun onScrolled(event: AccessibilityEvent, platform: ShortVideoPlatform, now: Long) {
-        val source = event.source
+        // En Android 13+ sin precarga de nodos vecinos: solo se mira este nodo.
+        val source = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) event.getSource(0) else event.source
         val viewId = source?.viewIdResourceName
         // Identidad del nodo (id de vista accesible + ventana), no su contenido: distingue un visor de otro.
-        val viewer = source?.hashCode()
+        // Solo del pager con id, que es el mismo nodo que identifica checkScreen.
+        val viewer = if (viewId != null && viewId in platform.pagerViewIds && viewId in platform.screenViewIds) {
+            source?.hashCode()
+        } else {
+            null
+        }
         // Instagram mantiene el visor de Reels montado aunque no se vea: solo cuenta si es visible.
         // Sin nodo no se puede saber: se acepta solo si ya estábamos dentro.
         val visible = source?.isVisibleToUser ?: tracker.inShortVideos
@@ -200,7 +226,16 @@ class ShortVideoAccessibilityService : AccessibilityService() {
             scheduleTrailingCheck(ShortVideoConfig.SCREEN_CHECK_THROTTLE_MS - sinceLast)
             return null
         }
-        val root = rootInActiveWindow ?: return null
+        val root = activeRoot() ?: run {
+            // Ventana ilegible delante (transición, app con datos sensibles): en una comprobación forzada
+            // cuenta como "no se ve", y la gracia de salida cubre los fallos momentáneos.
+            if (force) {
+                val wasIn = tracker.inShortVideos
+                tracker.onScreenState(platform.packageName, false, now)
+                if (wasIn && !tracker.inShortVideos) DebugLog.add("PANTALLA", "fuera (ventana ilegible delante)")
+            }
+            return null
+        }
         lastScreenCheck = elapsed
         val wasIn = tracker.inShortVideos
         if (root.packageName?.toString() != platform.packageName) {
@@ -237,7 +272,8 @@ class ShortVideoAccessibilityService : AccessibilityService() {
             if (tallest >= minHeight) {
                 matched = id
                 matchedHeight = tallest
-                matchedViewer = tallestViewer
+                // La identidad solo vale si es el pager: el mismo nodo que llega en los scrolls.
+                matchedViewer = if (id in platform.pagerViewIds) tallestViewer else null
                 break
             }
             if (small == null) small = "${shortId(id)} (alto ${tallest * 100 / rootHeight} %)"
@@ -280,6 +316,7 @@ class ShortVideoAccessibilityService : AccessibilityService() {
         }
         checkScreen(platform, now, force = true)
         if (tracker.inShortVideos) ServiceHealth.recordHeartbeat(this, now)
+        noteReelsSeen(now)
         LiveCounter.setInShortVideos(tracker.inShortVideos)
         ensureWatching()
     }
@@ -331,7 +368,8 @@ class ShortVideoAccessibilityService : AccessibilityService() {
                     DebugLog.add("SERVICIO", "estuvo parado: ${missedMs / 1000} s de Instagram sin contar")
                 }
             }
-            ServiceHealth.recordHeartbeat(context, System.currentTimeMillis(), force = true)
+            // Si el servicio se apagó mientras tanto, no se deja latido: un apagado ordenado no es un hueco.
+            if (!shutDown) ServiceHealth.recordHeartbeat(context, System.currentTimeMillis(), force = true)
         }
     }
 

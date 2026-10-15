@@ -56,6 +56,8 @@ fun DashboardScreen(
     permissions: PermissionState,
     onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Se llama en cada refresco: para releer también los permisos (pueden cambiar sin salir de la app). */
+    onTick: () -> Unit = {},
     vm: DashboardViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -64,6 +66,7 @@ fun DashboardScreen(
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
+                onTick()
                 vm.refresh()
                 val untilMidnight = DayRange.today().end - System.currentTimeMillis()
                 delay(minOf(60_000L, untilMidnight.coerceAtLeast(1_000L)))
@@ -100,7 +103,19 @@ fun DashboardScreen(
                 )
             }
         }
-        if (permissions.accessibilityConsent && !permissions.accessibilityEnabled) {
+        if (permissions.accessibilityConsent && !permissions.accessibilityEnabled && !permissions.counterEverConnected) {
+            item {
+                // Aceptado pero aún sin activar: no es un fallo, falta un paso.
+                Warning(
+                    "Has aceptado el aviso del contador de reels: falta activarlo en Ajustes > Accesibilidad > " +
+                        "$serviceLabel.",
+                    "Abrir Accesibilidad",
+                    openAccessibility,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                )
+            }
+        }
+        if (permissions.accessibilityConsent && !permissions.accessibilityEnabled && permissions.counterEverConnected) {
             item {
                 Warning(
                     "El contador de reels está apagado. Si no lo apagaste tú, Android lo apaga al forzar la " +
@@ -137,7 +152,7 @@ fun DashboardScreen(
                     "Abrir Accesibilidad",
                     openAccessibility,
                     secondaryText = "Batería",
-                    onSecondary = onOpenPermissions,
+                    onSecondary = { Permissions.openBatterySettings(context) },
                 )
             }
         }
@@ -150,7 +165,7 @@ fun DashboardScreen(
                     "Abrir Accesibilidad",
                     openAccessibility,
                     secondaryText = "Batería",
-                    onSecondary = onOpenPermissions,
+                    onSecondary = { Permissions.openBatterySettings(context) },
                 )
             }
         }
@@ -164,7 +179,7 @@ fun DashboardScreen(
                     "Entendido",
                     vm::dismissGap,
                     secondaryText = "Batería",
-                    onSecondary = onOpenPermissions,
+                    onSecondary = { Permissions.openBatterySettings(context) },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 )
             }
@@ -353,7 +368,8 @@ private fun Warning(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // En columna: con letra grande, dos botones en una fila no caben.
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Button(onClick = onClick) { Text(buttonText) }
                 if (secondaryText != null) TextButton(onClick = onSecondary) { Text(secondaryText) }
             }

@@ -24,6 +24,8 @@ data class PermissionState(
     val ignoringBatteryOptimizations: Boolean,
     /** APK instalado desde un archivo: Android puede mostrar los interruptores como "Ajuste restringido". */
     val restrictedSettingsLikely: Boolean = false,
+    /** El contador ha llegado a funcionar alguna vez (con la casilla aceptada). */
+    val counterEverConnected: Boolean = false,
 ) {
     /** El contador de reels solo cuenta con el servicio activado Y el consentimiento dado en la app. */
     val counterOn: Boolean get() = accessibilityEnabled && accessibilityConsent
@@ -38,10 +40,13 @@ object Permissions {
         ignoringBatteryOptimizations = context.getSystemService(PowerManager::class.java)
             ?.isIgnoringBatteryOptimizations(context.packageName) == true,
         restrictedSettingsLikely = installedFromFile(context),
+        counterEverConnected = ServiceHealth.connectedAt(context) != null,
     )
 
     fun setAccessibilityConsent(context: Context, given: Boolean) {
         ConsentStore.set(context, given)
+        // Lo que pase en Instagram con la casilla desmarcada lo decidió el usuario: no es un hueco.
+        if (!given) ServiceHealth.clearHeartbeat(context)
         // Con el servicio en marcha, lo que pasó en Instagram sin consentimiento no cuenta como
         // "contador parado". Sin servicio no se escribe: no hay ningún contador que vigilar todavía.
         if (given && LiveCounter.state.value.serviceRunning) {

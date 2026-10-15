@@ -2,6 +2,7 @@ package com.freedoom.app.ui
 
 import android.content.Intent
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,7 +49,7 @@ import com.freedoom.app.data.AppDatabase
 import com.freedoom.app.data.DayRange
 import com.freedoom.app.debug.CalibrationStore
 import com.freedoom.app.debug.DebugLog
-import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -63,14 +64,18 @@ private data class HealthInfo(val connectedAt: Long?, val heartbeatAt: Long?, va
 private enum class Confirm { ClearLog, DeleteToday }
 
 /** Solo en builds debug: contador en vivo, tanda de calibración, salud del servicio y registro de eventos. */
+/** Tope del texto compartido: un Intent demasiado grande cierra la app. */
+private const val MAX_SHARE_CHARS = 100_000
+
 @Composable
 fun DebugScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val appName = stringResource(R.string.app_name)
     val scope = rememberCoroutineScope()
-    // Un fallo de la base de datos aquí no debe tumbar el proceso (que es también el del contador).
-    val errorHandler = remember {
-        CoroutineExceptionHandler { _, e ->
+    // Un fallo de la base de datos aquí no debe tumbar el proceso (que es también el del contador)
+    // ni cancelar el scope de la pantalla, que la dejaría congelada: se captura dentro de cada tarea.
+    val reportError = remember {
+        { e: Exception ->
             Log.w("FreeDoom", "fallo en depuración", e)
             DebugLog.add("ERROR", "depuración: ${e.javaClass.simpleName}")
         }
@@ -189,20 +194,26 @@ fun DebugScreen(modifier: Modifier = Modifier) {
                             Text("Diferencia (BD − a mano): ${signed(db - m)}")
                         }
                         OutlinedButton(onClick = {
-                            scope.launch(errorHandler) {
-                                val saved = withContext(Dispatchers.IO) { dao.count(current.startedAt, Long.MAX_VALUE) }
-                                val vivo = LiveCounter.state.value.calibrationCount
-                                val reinicio = vivo == null ||
-                                    (ServiceHealth.connectedAt(context)?.let { it > current.startedAt } == true)
-                                val note = if (reinicio) " (el servicio se reinició durante la tanda)" else ""
-                                val dif = m?.let { signed(saved - it) } ?: "?"
-                                val line = "tanda ${current.number} fin: bd=$saved vivo=${vivo ?: "?"} " +
-                                    "manual=${m ?: "?"} dif=$dif$note"
-                                DebugLog.add("CALIBRACIÓN", line)
-                                CalibrationStore.finish(context, line)
-                                LiveCounter.stopCalibration()
-                                lastResult = line
-                                batch = null
+                            scope.launch {
+                                try {
+                                    val saved = withContext(Dispatchers.IO) { dao.count(current.startedAt, Long.MAX_VALUE) }
+                                    val vivo = LiveCounter.state.value.calibrationCount
+                                    val reinicio = vivo == null ||
+                                        (ServiceHealth.connectedAt(context)?.let { it > current.startedAt } == true)
+                                    val note = if (reinicio) " (el servicio se reinició durante la tanda)" else ""
+                                    val dif = m?.let { signed(saved - it) } ?: "?"
+                                    val line = "tanda ${current.number} fin: bd=$saved vivo=${vivo ?: "?"} " +
+                                        "manual=${m ?: "?"} dif=$dif$note"
+                                    DebugLog.add("CALIBRACIÓN", line)
+                                    CalibrationStore.finish(context, line)
+                                    LiveCounter.stopCalibration()
+                                    lastResult = line
+                                    batch = null
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    reportError(e)
+                                }
                             }
                         }) { Text("Terminar tanda") }
                     }
@@ -210,11 +221,23 @@ fun DebugScreen(modifier: Modifier = Modifier) {
             }
 
             Button(onClick = {
+                // Android no deja pasar textos enormes entre apps: si es muy largo, se envía el final.
+                val full = DebugLog.export()
+                val text = if (full.length > MAX_SHARE_CHARS) {
+                    "(registro recortado: solo las últimas líneas)\n" + full.takeLast(MAX_SHARE_CHARS)
+                } else {
+                    full
+                }
                 val send = Intent(Intent.ACTION_SEND)
                     .setType("text/plain")
                     .putExtra(Intent.EXTRA_SUBJECT, "Registro $appName")
-                    .putExtra(Intent.EXTRA_TEXT, DebugLog.export())
-                context.startActivity(Intent.createChooser(send, "Compartir registro"))
+                    .putExtra(Intent.EXTRA_TEXT, text)
+                try {
+                    context.startActivity(Intent.createChooser(send, "Compartir registro"))
+                } catch (e: Exception) {
+                    reportError(e)
+                    Toast.makeText(context, "No se pudo compartir el registro", Toast.LENGTH_LONG).show()
+                }
             }) { Text("Compartir registro") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { confirm = Confirm.ClearLog }) { Text("Vaciar registro") }
@@ -243,7 +266,15 @@ fun DebugScreen(modifier: Modifier = Modifier) {
             confirmText = "Borrar",
             onConfirm = {
                 val today = DayRange.today()
-                scope.launch(Dispatchers.IO + errorHandler) { dao.deleteBetween(today.start, today.end) }
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) { dao.deleteBetween(today.start, today.end) }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        reportError(e)
+                    }
+                }
                 DebugLog.add("DATOS", "borrados los reels de hoy")
             },
             onDismiss = { confirm = null },

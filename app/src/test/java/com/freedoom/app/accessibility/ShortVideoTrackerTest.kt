@@ -250,4 +250,66 @@ class ShortVideoTrackerTest {
         tracker.onPagerScrolled(pkg, 6, 6, 11_000)
         assertEquals(listOf(0L, 10_300L), started)
     }
+
+    @Test
+    fun newViewerBeforeExitGraceCountsAsNewReel() {
+        // Reel 1 de un chat, atrás y reel 2 en menos de lo que tarda en confirmarse la salida.
+        tracker.onScreenState(pkg, true, 0, viewer = 1)
+        tracker.onPagerScrolled(pkg, 0, 0, 20, viewer = 1)
+        tracker.onScreenState(pkg, false, 10_500)
+        tracker.onScreenState(pkg, false, 11_500) // aún dentro de la gracia
+        tracker.onScreenState(pkg, true, 11_800, viewer = 2)
+        tracker.onPagerScrolled(pkg, 0, 0, 11_820, viewer = 2)
+        assertEquals(listOf(0L, 11_800L), started)
+        assertEquals(listOf(0L to 10_500L), ended)
+    }
+
+    @Test
+    fun viewerValueFlickerWithoutLeavingDoesNotCount() {
+        tracker.onScreenState(pkg, true, 0, viewer = 1)
+        tracker.onScreenState(pkg, true, 1_000, viewer = 2)
+        tracker.onScreenState(pkg, true, 2_000, viewer = 1)
+        assertEquals(listOf(0L), started)
+    }
+
+    @Test
+    fun backToReelsTabAfterAnotherViewerResumes() {
+        // Reels (visor 1) → perfil → reel del perfil (visor 2) → perfil → Reels otra vez.
+        tracker.onScreenState(pkg, true, 0, viewer = 1)
+        tracker.onPagerScrolled(pkg, 5, 5, 1_000, viewer = 1)
+        tracker.onScreenState(pkg, false, 10_000)
+        tracker.onScreenState(pkg, false, 11_600)
+        tracker.onScreenState(pkg, true, 20_000, viewer = 2)
+        tracker.onScreenState(pkg, false, 30_000)
+        tracker.onScreenState(pkg, false, 31_600)
+        tracker.onScreenState(pkg, true, 40_000, viewer = 1)
+        assertEquals(listOf(0L, 20_000L), started)
+    }
+
+    @Test
+    fun firstSwipeAfterResumeWithoutKnownIndexCounts() {
+        tracker.onScreenState(pkg, true, 0)
+        tracker.stop(5_000)
+        tracker.onScreenState(pkg, true, 10_000)
+        tracker.onPagerScrolled(pkg, 0, 1, 10_100)
+        tracker.onPagerScrolled(pkg, 1, 1, 10_300)
+        assertEquals(listOf(0L, 10_300L), started)
+    }
+
+    @Test
+    fun seededExitAfterProcessRestartResumes() {
+        tracker.seedExit(pkg, viewer = 7, at = 1_000)
+        tracker.onScreenState(pkg, true, 20_000, viewer = 7)
+        assertEquals(emptyList<Long>(), started)
+        assertEquals(listOf(20_000L), resumed)
+    }
+
+    @Test
+    fun forgetExitsMakesTheNextEntryCount() {
+        tracker.onScreenState(pkg, true, 0, viewer = 1)
+        tracker.stop(5_000)
+        tracker.forgetExits()
+        tracker.onScreenState(pkg, true, 30_000, viewer = 1)
+        assertEquals(listOf(0L, 30_000L), started)
+    }
 }

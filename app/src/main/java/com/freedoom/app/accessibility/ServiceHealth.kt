@@ -14,6 +14,9 @@ object ServiceHealth {
     private const val KEY_GAP_FROM = "gap_from"
     private const val KEY_GAP_TO = "gap_to"
     private const val KEY_GAP_MS = "gap_instagram_ms"
+    private const val KEY_REELS_SEEN_AT = "reels_seen_at"
+    private const val KEY_REELS_VIEWER = "reels_viewer"
+    private const val REELS_SEEN_INTERVAL_MS = 10_000L
 
     /** Como mucho una escritura de latido por intervalo. */
     const val HEARTBEAT_INTERVAL_MS = 60_000L
@@ -22,6 +25,10 @@ object ServiceHealth {
     data class Gap(val from: Long, val to: Long, val instagramMs: Long)
 
     @Volatile private var cachedHeartbeat: Long? = null
+    @Volatile private var cachedReelsSeen: Long? = null
+
+    /** Última vez que se estaba en vídeos cortos y con qué visor (su identidad técnica, no su contenido). */
+    data class ReelsSeen(val at: Long, val viewer: Int?)
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -49,6 +56,26 @@ object ServiceHealth {
 
     fun lastHeartbeatAt(context: Context): Long? =
         cachedHeartbeat ?: prefs(context).getLong(KEY_LAST_HEARTBEAT, -1L).takeIf { it >= 0 }
+
+    /**
+     * Mientras se está en vídeos cortos (como mucho cada 10 s): si el proceso se reinicia a mitad de
+     * un reel, al volver al mismo visor no se cuenta otra vez.
+     */
+    fun recordReelsSeen(context: Context, at: Long, viewer: Int?) {
+        val last = cachedReelsSeen
+        if (last != null && at - last in 0 until REELS_SEEN_INTERVAL_MS) return
+        cachedReelsSeen = at
+        prefs(context).edit().apply {
+            putLong(KEY_REELS_SEEN_AT, at)
+            if (viewer != null) putInt(KEY_REELS_VIEWER, viewer) else remove(KEY_REELS_VIEWER)
+        }.apply()
+    }
+
+    fun reelsSeen(context: Context): ReelsSeen? {
+        val p = prefs(context)
+        val at = p.getLong(KEY_REELS_SEEN_AT, -1L).takeIf { it >= 0 } ?: return null
+        return ReelsSeen(at, if (p.contains(KEY_REELS_VIEWER)) p.getInt(KEY_REELS_VIEWER, 0) else null)
+    }
 
     fun saveGap(context: Context, gap: Gap) {
         prefs(context).edit()

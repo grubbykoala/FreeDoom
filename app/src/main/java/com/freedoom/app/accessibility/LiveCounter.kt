@@ -57,6 +57,19 @@ object LiveCounter {
         )
     }
 
-    fun startCalibration() = _state.update { it.copy(calibrationCount = 0) }
+    /** Lo pide la tanda de calibración: el servicio olvida las salidas recientes en su siguiente evento. */
+    @Volatile private var forgetExitsRequested = false
+
+    fun takeForgetExitsRequest(): Boolean {
+        if (!forgetExitsRequested) return false
+        forgetExitsRequested = false
+        return true
+    }
+
+    /** Al empezar una tanda, el reel que se vea al volver a Instagram cuenta como el primero. */
+    fun startCalibration() {
+        forgetExitsRequested = true
+        _state.update { it.copy(calibrationCount = 0) }
+    }
     fun stopCalibration() = _state.update { it.copy(calibrationCount = null) }
 }

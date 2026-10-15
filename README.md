@@ -122,7 +122,8 @@ latido y el último hueco.
 
 1. Abre FreeDoom > **Depuración** > "Empezar tanda". Las tandas van numeradas y se guardan
    en el móvil: si la app se cierra a mitad, la tanda sigue.
-2. Ve a Instagram y pasa reels contándolos a mano.
+2. Ve a Instagram y pasa reels contándolos a mano. **El reel que veas al llegar cuenta como
+   el primero** (al empezar una tanda, el contador olvida en qué reel estabas).
 3. Vuelve a FreeDoom > Depuración:
    - **"Guardados en la BD"** es la cifra que cuenta: lo que de verdad se guardó y verá el
      panel. "En vivo" es el contador en memoria; si no coinciden, se han perdido escrituras.
@@ -234,7 +235,15 @@ reel y los resultados de las tandas; nunca textos, nombres de cuentas ni imágen
   por más de 400 ms es un gesto, y cada gesto es un reel.
 - Volver atrás a un reel anterior también cuenta (es un vídeo visto otra vez).
 - Volver al mismo reel en menos de 3 minutos sin deslizar es una reanudación y no cuenta
-  (pendiente de confirmar por Santi).
+  (pendiente de confirmar por Santi). "El mismo" se reconoce por la identidad técnica del
+  visor y se recuerdan las últimas 4 salidas: Reels → perfil → reel del perfil → Reels sigue
+  siendo una vuelta. Si el proceso de FreeDoom se reinicia a mitad de un reel (Stop en
+  Android Studio), también se reconoce.
+- Si aparece otro visor justo después de salir (el siguiente reel de un chat, antes de que
+  pase el segundo y medio de margen de salida), es otro reel y cuenta.
+- Pendiente de la calibración: si el visor de Reels no informa del índice, se usa la regla de
+  los 400 ms, que cuenta un medio deslizamiento y junta dos gestos sin pausa. Si el registro
+  muestra `from=-1`, se cambiará por el desplazamiento real del visor.
 - El tiempo de cada reel va desde que aparece hasta que aparece el siguiente, se sale de
   Reels, se pasa a otra app o se apaga la pantalla. Si el contador se para antes de
   cerrarlo, su duración queda como desconocida y no entra en la media.

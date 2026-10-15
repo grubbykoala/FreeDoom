@@ -111,8 +111,11 @@ fun PermissionsScreen(
             )
             Text("Qué lee", fontWeight = FontWeight.Bold)
             Text(
-                "Solo mientras Instagram está abierto, y solo los identificadores técnicos de la pantalla " +
-                    "(por ejemplo, \"esto es el visor de Reels\") y el momento en que pasas al siguiente vídeo."
+                "Solo mientras Instagram está abierto, y solo datos técnicos de la pantalla: sus identificadores " +
+                    "(por ejemplo, \"esto es el visor de Reels\"), si ese visor se ve y a qué tamaño, qué número de " +
+                    "vídeo de la lista tienes delante y un número interno que distingue un visor de otro (no su " +
+                    "contenido; solo en memoria, para no contar dos veces el mismo reel al volver). Con eso sabe " +
+                    "cuándo pasas al siguiente vídeo."
             )
             Text("Qué NO hace", fontWeight = FontWeight.Bold)
             Text(
@@ -124,7 +127,10 @@ fun PermissionsScreen(
             Text(
                 "Solo en tu móvil: cuántos reels has visto y a qué hora empezó y terminó cada uno. Para avisarte " +
                     "si el contador deja de funcionar, guarda también la hora de la última vez que recibió algo " +
-                    "de Instagram (se sobrescribe, como mucho una vez por minuto) y cuándo se conectó."
+                    "de Instagram (se sobrescribe, como mucho una vez por minuto) y cuándo se conectó. Si al volver " +
+                    "a conectarse ve en los datos de uso que Instagram estuvo abierto mientras él estaba parado, " +
+                    "guarda ese hueco (de qué hora a qué hora y cuántos minutos de Instagram) hasta que pulses " +
+                    "\"Entendido\"."
             )
             Text(
                 "Si no lo activas, $appName sigue funcionando con el tiempo por app.",

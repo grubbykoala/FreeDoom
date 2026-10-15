@@ -30,7 +30,8 @@ import kotlinx.coroutines.launch
 /**
  * Cuenta vídeos cortos. Solo recibe eventos de las apps de [ShortVideoConfig] y
  * solo mira ids de vista y clases; nunca lee ni guarda textos ni imágenes.
- * Sin el consentimiento aceptado en la app no cuenta, no guarda y no registra nada.
+ * Sin el consentimiento aceptado en la app no cuenta ni guarda nada de Instagram (en depuración
+ * solo anota que se desactiva).
  */
 class ShortVideoAccessibilityService : AccessibilityService() {
 

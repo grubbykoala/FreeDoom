@@ -10,8 +10,11 @@ Instagram coincide con el conteo a mano.
 
 1. **Instala Android Studio** (gratis): <https://developer.android.com/studio>. Al abrirlo por
    primera vez, acepta la instalación por defecto (descarga el SDK de Android).
-2. **Abre el proyecto**: *File > Open* y elige la carpeta `FreeDoom`. Espera a que termine
-   la sincronización de Gradle (barra inferior).
+2. **Descarga el proyecto**: en <https://github.com/grubbykoala/FreeDoom>, botón verde
+   *Code > Download ZIP*, y descomprímelo. La carpeta se llamará `FreeDoom-main`.
+3. **Abre el proyecto**: en Android Studio, *File > Open* y elige esa carpeta
+   (`FreeDoom-main` o `FreeDoom`). Espera a que termine la sincronización de Gradle (barra
+   inferior).
    - **No aceptes ninguna sugerencia de actualizar versiones**: ni "Upgrade Gradle wrapper",
      ni el asistente de actualización del plugin de Android (AGP Upgrade Assistant), ni los
      avisos de "versión más nueva disponible" en `libs.versions.toml`. Las versiones están
@@ -28,13 +31,32 @@ Instagram coincide con el conteo a mano.
 
      Para saber si te afecta: *Help > About* (en Mac, *Android Studio > About Android
      Studio*). Si "Runtime version" empieza por 21, no tienes que hacer nada.
-3. **Activa la depuración USB en el móvil**:
-   - Ajustes > Información del teléfono > toca 7 veces "Número de compilación".
-   - Ajustes > Sistema > Opciones de desarrollador > activa "Depuración USB".
-4. **Conecta el móvil por cable** y acepta en el móvil el aviso "¿Permitir depuración USB?".
-5. En Android Studio, arriba, elige tu móvil en la lista de dispositivos y pulsa ▶ (*Run*).
+4. **Activa la depuración USB en el móvil**:
+   - Ajustes > Información del teléfono > toca 7 veces "Número de compilación" (en Samsung
+     está dentro de "Información de software"; en Xiaomi, toca 7 veces "Versión de MIUI" o
+     "Versión de HyperOS").
+   - Ajustes > Sistema > Opciones de desarrollador > activa "Depuración USB" (en Samsung,
+     "Opciones de desarrollador" está al final de Ajustes; en Xiaomi, en "Ajustes
+     adicionales", y activa también "Instalar vía USB" o Android Studio no podrá instalar la
+     app).
+5. **Conecta el móvil por cable** y acepta en el móvil el aviso "¿Permitir depuración USB?".
+6. En Android Studio, arriba, elige tu móvil en la lista de dispositivos y pulsa ▶ (*Run*).
    Se instala **"FreeDoom (debug)"**: la versión de pruebas, con modo depuración. Se llama
    distinto para no confundirla con la definitiva si algún día tienes las dos.
+
+### Sin móvil Android: el emulador
+
+Sirve para ver la app y sacar los primeros registros; la calibración final debe hacerse en
+un móvil real (con el ratón no se desliza igual que con el dedo).
+
+1. En Android Studio: *Tools > Device Manager > + > Create Virtual Device*.
+2. Elige un teléfono (por ejemplo, *Pixel 8*) y, en la imagen del sistema, una que tenga el
+   icono de **Google Play** (pestaña o columna "Play Store"), con Android 14 o posterior.
+   Pulsa *Download* si hace falta y luego *Finish*.
+3. Arranca el emulador (▶ en el Device Manager), entra con tu cuenta de Google en Play Store
+   e instala Instagram.
+4. Vuelve a Android Studio, elige el emulador en la lista de dispositivos y pulsa ▶ (*Run*).
+5. Para deslizar reels: arrastra con el ratón de abajo arriba, con un gesto rápido.
 
 > **Ojo con el botón ■ Stop de Android Studio.** Si lo pulsas, o si fuerzas la detención de
 > FreeDoom en Ajustes (o la cierra un "limpiador"), Android apaga el contador de reels. El
@@ -53,8 +75,10 @@ En la pestaña **Permisos** (en las listas de Ajustes, la versión de pruebas ap
    "FreeDoom · contador de vídeos cortos").
    - Android mostrará un aviso genérico de "control total del dispositivo". Sale con
      cualquier servicio de accesibilidad; FreeDoom solo lo usa para contar reels.
-   - Sin la casilla marcada no se cuenta nada, aunque el servicio esté activado en Ajustes.
-     Si la desmarcas, FreeDoom deja de contar.
+   - Marca la casilla **antes** de activarlo: si lo activas en Ajustes sin ella, el
+     interruptor se vuelve a apagar solo (y la primera vez FreeDoom se abre en el aviso). Si
+     la desmarcas después, FreeDoom deja de contar aunque siga activado en Ajustes; el panel
+     te lo recordará.
 3. **Batería** (recomendado) → quita FreeDoom de la optimización de batería (sobre todo en
    Xiaomi, Huawei, Samsung, OPPO y vivo), o el sistema puede apagar el contador. En Samsung,
    además: Batería > Límites de uso en segundo plano > "Apps que nunca se suspenden" > añade
@@ -77,13 +101,19 @@ El panel avisa cuando el contador de reels no está funcionando:
   propósito, desmarca la casilla en Permisos y el aviso desaparece.
 - **Activado pero no funciona**: apágalo y vuelve a encenderlo en Ajustes > Accesibilidad;
   si sigue igual, reinicia el móvil y revisa la batería.
+- **No recibe nada de Instagram** ("la abriste (14:05) y no se enteró"): está activado,
+  pero Android no le pasa lo que ocurre en Instagram. Apágalo y vuelve a encenderlo en
+  Ajustes > Accesibilidad; si sigue igual, reinicia el móvil y revisa la batería.
+- **Casilla desmarcada**: está activado en Ajustes pero no cuenta nada. Marca la casilla en
+  Permisos para que cuente, o apágalo también en Ajustes.
 - **Huecos detectados**: mientras funciona, el contador apunta (como mucho una vez por
   minuto, sobrescribiendo la anterior) la hora de la última vez que recibió algo de
-  Instagram, y la hora a la que se conecta; solo esas horas, nada más. Cuando vuelve a
+  Instagram, y la hora a la que se conecta. Cuando vuelve a
   arrancar tras un cierre inesperado, mira si Instagram se abrió sin que él se enterase y
   cuánto tiempo estuvo abierto. Si pasa de 1 minuto, el panel lo dice, por ejemplo: "El
   contador estuvo parado de 14:05 a 19:30 (unos 32 min de Instagram sin contar)". Los reels
-  de ese rato no se recuperan. Si lo apagas tú en Ajustes, no se considera un hueco.
+  de ese rato no se recuperan. El hueco (inicio, fin y minutos de Instagram) se guarda hasta
+  que pulsas "Entendido"; nada más. Si lo apagas tú en Ajustes, no se considera un hueco.
 
 En la pantalla **Depuración**, "Salud del contador" muestra cuándo se conectó, el último
 latido y el último hueco.
@@ -99,9 +129,12 @@ latido y el último hueco.
    - Escribe tu número en **"Tu cuenta a mano"** y mira la diferencia.
    - Pulsa "Terminar tanda": el resultado queda escrito en el registro (base de datos, en
      vivo, a mano y diferencia) y a la vista como "Último resultado".
-4. Pulsa "Compartir registro" para enviarme el registro (por ejemplo, a ti mismo por correo
-   o Telegram) y pégamelo en el chat. Con él ajusto los identificadores de pantalla.
-   "Vaciar registro" y "Borrar hoy" piden confirmación.
+4. **Al terminar cada tanda, antes de empezar la siguiente**, pulsa "Compartir registro"
+   para enviarme el registro (por ejemplo, a ti mismo por correo o Telegram) y pégamelo en
+   el chat. Con él ajusto los identificadores de pantalla. El registro está solo en memoria
+   y guarda las últimas 400 líneas: si esperas a hacer varias tandas, las primeras se
+   pierden, y si la app se cierra se borra entero (la tanda y su cifra de la BD sí se
+   conservan). "Vaciar registro" y "Borrar hoy" piden confirmación.
 
 Haz una tanda de cada (unos 20 reels si se puede, salvo que se diga otra cosa):
 
@@ -120,8 +153,9 @@ Haz una tanda de cada (unos 20 reels si se puede, salvo que se diga otra cosa):
 13. Tres reels distintos abiertos seguidos desde el mismo chat, en menos de 3 minutos (deben
     contar 3).
 
-El registro solo contiene tipos de evento, clases e ids técnicos de las vistas de Instagram;
-nunca textos, nombres de cuentas ni imágenes.
+El registro contiene la hora de cada línea, tipos de evento, clases e ids técnicos de las
+vistas de Instagram, posiciones y tamaños, el número interno del visor, los segundos de cada
+reel y los resultados de las tandas; nunca textos, nombres de cuentas ni imágenes.
 
 ## Qué cuenta como reel
 
@@ -179,6 +213,11 @@ nunca textos, nombres de cuentas ni imágenes.
 - `app/src/debug/res/`: nombres de la versión de pruebas ("FreeDoom (debug)").
 - Para publicar (fase 1): *Build > Generate Signed App Bundle* con la clave de subida; no
   hace falta poner la firma en Gradle.
+- Antes de subirla a Google Play (también a la prueba cerrada): política de privacidad
+  publicada (enlace en Play Console y enlace o texto dentro de la app), formulario de
+  declaración de la API de accesibilidad con un vídeo corto que muestre el aviso de Permisos
+  y la casilla, y la sección «Seguridad de los datos» (no se recoge ni se comparte nada: todo
+  se queda en el móvil).
 - Tests: `./gradlew test`.
 
 ### Cómo se cuenta un reel

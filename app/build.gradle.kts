@@ -7,18 +7,20 @@ plugins {
 
 android {
     namespace = "com.freedoom.app"
-    compileSdk = 35
+    // Google Play sube cada agosto el targetSdk mínimo: revisarlo antes de cada subida.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.freedoom.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.0.1-fase0"
     }
 
     buildTypes {
         debug {
+            // Puede convivir con la release; su nombre ("FreeDoom (debug)") está en src/debug/res.
             applicationIdSuffix = ".debug"
         }
         release {
@@ -31,18 +33,22 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
 ksp {
     arg("room.generateKotlin", "true")
+    // Esquema exportado: hace falta para migrar sin borrar datos. Sube app/schemas/ a git.
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {

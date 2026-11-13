@@ -3,6 +3,12 @@
   La lista real de apps vigiladas está en ShortVideoConfig.kt: el servicio la
   aplica al conectarse. Aquí se repite Instagram para que el filtro esté activo
   desde el primer evento.
+
+  android:isAccessibilityTool NUNCA debe ser true: está reservado a herramientas para
+  personas con discapacidad (lectores de pantalla, etc.). FreeDoom no lo es, y declararlo
+  incumpliría la política de Google Play.
+  No cambiar android:notificationTimeout: con más de 0 Android agrupa los scrolls y se
+  perderían deslizamientos rápidos.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"

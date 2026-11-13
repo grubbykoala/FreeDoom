@@ -8,7 +8,9 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [ShortVideoEntity::class, AppUsageDailyEntity::class, DailySummaryEntity::class],
     version = 1,
-    exportSchema = false,
+    // El esquema se guarda en app/schemas (ver room.schemaLocation en app/build.gradle.kts):
+    // es la base para escribir migraciones cuando haya testers con datos.
+    exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun shortVideoDao(): ShortVideoDao
@@ -21,6 +23,8 @@ abstract class AppDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "freedoom.db")
                     // Prototipo: si cambia el esquema se borran los datos en vez de migrar.
+                    // Antes de la primera versión para testers: migraciones (AutoMigration) y
+                    // fallbackToDestructiveMigrationOnDowngrade().
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

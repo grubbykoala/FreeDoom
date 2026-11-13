@@ -1,0 +1,4 @@
+<resources>
+    <!-- Fondo oscuro de la ventana en modo oscuro: evita el destello blanco al abrir la app. -->
+    <style name="Theme.FreeDoom" parent="android:Theme.Material.NoActionBar" />
+</resources>

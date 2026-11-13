@@ -1,5 +1,10 @@
+# Versiones fijadas a propósito: combinación revisada que compila junta. No aceptes las
+# sugerencias de Android Studio de subir versiones sueltas (ni el asistente de AGP).
+# - agp 8.9.1 es el mínimo que admite compileSdk/targetSdk 36 y pide Gradle 8.11.1 (el del wrapper).
+# - kotlin, ksp y room se actualizan SIEMPRE juntos. Con KSP < 2.3, ksp = "<kotlin>-<x>".
+#   Con KSP2 (ksp 2.x.y-2.0.z o >= 2.3) hace falta room >= 2.7.
 [versions]
-agp = "8.7.3"
+agp = "8.9.1"
 kotlin = "2.1.0"
 ksp = "2.1.0-1.0.29"
 coreKtx = "1.15.0"

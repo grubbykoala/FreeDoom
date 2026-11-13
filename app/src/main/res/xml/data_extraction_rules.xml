@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 o posterior: no se copia nada ni a la nube ni a otro móvil (todo se queda en
+  este). Si se decide que el historial pase al móvil nuevo, en device-transfer se cambiarían
+  las exclusiones por <include domain="database" path="." /> (la carpeta entera, para que
+  vayan también los ficheros -wal y -shm) y nunca sharedpref: el consentimiento del contador
+  debe pedirse otra vez en el móvil nuevo.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

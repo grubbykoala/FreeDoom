@@ -1,0 +1,5 @@
+<resources>
+    <!-- La versión de pruebas se llama distinto para no confundirla con la definitiva en Ajustes. -->
+    <string name="app_name">FreeDoom (debug)</string>
+    <string name="accessibility_service_label">FreeDoom debug · contador de vídeos cortos</string>
+</resources>

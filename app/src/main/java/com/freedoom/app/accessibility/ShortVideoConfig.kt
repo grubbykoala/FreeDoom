@@ -19,8 +19,15 @@ data class ShortVideoPlatform(
     /**
      * Clases que se aceptan como pager si la vista no expone id. Solo se usan
      * cuando ya sabemos que estamos en la pantalla de vídeos cortos.
+     * ViewPager2 se anuncia como androidx.viewpager.widget.ViewPager. No poner clases
+     * genéricas como RecyclerView: también las usan listas y carruseles de fotos.
      */
     val pagerClassNames: List<String> = emptyList(),
+    /**
+     * Parte de la altura de la ventana que debe ocupar la vista detectada para dar por hecho
+     * que se ve el visor a pantalla completa (y no una miniatura o un vídeo dentro del feed).
+     */
+    val minScreenFraction: Float = 0.6f,
     val enabled: Boolean = true,
 )
 
@@ -38,27 +45,40 @@ object ShortVideoConfig {
     /** Silencio (sin eventos de la app) tras el cual se cierra el vídeo abierto. */
     const val MAX_SILENT_GAP_MS = 3 * 60_000L
 
+    /**
+     * Volver al mismo vídeo antes de este tiempo (pantalla apagada, otra app, un perfil...)
+     * es una reanudación y no cuenta otra vez. Se ajusta tras la calibración.
+     */
+    const val RESUME_WINDOW_MS = 3 * 60_000L
+
+    /** Al abrir el visor, los saltos del pager durante este tiempo solo colocan el reel tocado. */
+    const val OPEN_SETTLE_MS = 400L
+
     /** Cada cuánto, como máximo, se inspecciona el árbol de vistas en cambios de contenido. */
     const val SCREEN_CHECK_THROTTLE_MS = 700L
 
-    private fun ig(id: String) = "com.instagram.android:id/$id"
+    /** Mientras se está en vídeos cortos, cada cuánto se comprueba que se sigue en esa pantalla. */
+    const val WATCH_INTERVAL_MS = 1_000L
+
+    /** Retraso máximo con el que se acepta la hora de un evento (si el hilo principal iba lento). */
+    const val MAX_EVENT_LAG_MS = 5_000L
+
+    const val INSTAGRAM_PACKAGE = "com.instagram.android"
+
+    private fun ig(id: String) = "$INSTAGRAM_PACKAGE:id/$id"
 
     val platforms: List<ShortVideoPlatform> = listOf(
         ShortVideoPlatform(
-            packageName = "com.instagram.android",
+            packageName = INSTAGRAM_PACKAGE,
             label = "Instagram Reels",
-            // Candidatos iniciales; se confirman con el registro de depuración.
+            // Candidatos iniciales; se confirman con el registro de depuración. El primero es el más fiable.
             screenViewIds = listOf(
                 ig("clips_viewer_view_pager"),
                 ig("clips_viewer_container"),
                 ig("clips_video_container"),
             ),
             pagerViewIds = listOf(ig("clips_viewer_view_pager")),
-            pagerClassNames = listOf(
-                "androidx.viewpager.widget.ViewPager",
-                "androidx.viewpager2.widget.ViewPager2",
-                "androidx.recyclerview.widget.RecyclerView",
-            ),
+            pagerClassNames = listOf("androidx.viewpager.widget.ViewPager"),
         ),
         // Fase 1: TikTok, YouTube Shorts y Facebook. Desactivados en la fase 0.
         ShortVideoPlatform("com.zhiliaoapp.musically", "TikTok", emptyList(), emptyList(), enabled = false),
@@ -67,7 +87,7 @@ object ShortVideoConfig {
         ShortVideoPlatform("com.facebook.katana", "Facebook Reels", emptyList(), emptyList(), enabled = false),
     )
 
-    val enabledPlatforms: List<ShortVideoPlatform> get() = platforms.filter { it.enabled }
+    val enabledPlatforms: List<ShortVideoPlatform> = platforms.filter { it.enabled }
 
     fun forPackage(packageName: String): ShortVideoPlatform? =
         enabledPlatforms.firstOrNull { it.packageName == packageName }
